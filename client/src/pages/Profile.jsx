@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from "react";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import {
   getStorage,
   ref,
@@ -7,14 +7,21 @@ import {
   getDownloadURL,
 } from "firebase/storage";
 import { app } from "../firebase";
+import {
+  updateUserStart,
+  updateUserFailure,
+  updateUserSuccess,
+} from "../redux/user/userSlice";
 
 const Profile = () => {
-  const { currentUser } = useSelector((state) => state.user);
+  const { currentUser, loading, error } = useSelector((state) => state.user);
+  const dispatch = useDispatch();
   const fileRef = useRef(null);
   const [image, setImage] = useState(undefined);
   const [imgPercent, setImgPercent] = useState(0);
   const [imgError, setImgError] = useState(false);
   const [formData, setFormData] = useState({});
+  const [updateSuccess, setUpdateSuccess] = useState(false);
 
   const handleUpload = async (image) => {
     console.log(image);
@@ -39,6 +46,33 @@ const Profile = () => {
         });
       }
     );
+  };
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.id]: e.target.value });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    dispatch(updateUserStart());
+    try {
+      const res = await fetch(`/api/users/update/${currentUser._id}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formData),
+      });
+      const data = await res.json();
+      if (data.success === false) {
+        dispatch(updateUserFailure(data));
+        return;
+      }
+      dispatch(updateUserSuccess(data));
+      setUpdateSuccess(true);
+    } catch (error) {
+      dispatch(updateUserFailure(error));
+    }
   };
 
   useEffect(() => {
@@ -82,6 +116,7 @@ const Profile = () => {
           placeholder='Username'
           className='bg-slate-100 rounded-lg p-3'
           defaultValue={currentUser.username}
+          onChange={handleChange}
         />
         <input
           defaultValue={currentUser.email}
@@ -89,24 +124,31 @@ const Profile = () => {
           id='email'
           placeholder='Email'
           className='bg-slate-100 rounded-lg p-3'
+          onChange={handleChange}
         />
         <input
           type='password'
           id='password'
           placeholder='Password'
           className='bg-slate-100 rounded-lg p-3'
+          onChange={handleChange}
         />
         <button
           className='bg-slate-700 text-white p-3 rounded-lg uppercase
          hover:opacity-80 disabled:60'
+          onClick={handleSubmit}
         >
-          Update
+          {loading ? "Loading..." : "Update"}
         </button>
-        <div className='flex justify-between mt-5'>
-          <span className='text-red-700 cursor-pointer'>Delete account</span>
-          <span className='text-red-700 cursor-pointer'>Sign out</span>
-        </div>
       </form>
+      <div className='flex justify-between mt-5'>
+        <span className='text-red-700 cursor-pointer'>Delete account</span>
+        <span className='text-red-700 cursor-pointer'>Sign out</span>
+      </div>
+      <p className='text-red-700 mt-5'>{error && "Something went wrong"}</p>
+      <p className='text-green-700 mt-5'>
+        {updateSuccess && "Successful upload"}
+      </p>
     </div>
   );
 };
